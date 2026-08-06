@@ -5,8 +5,8 @@ async function checkRateLimit(ip) {
   if (!url || !token) return { allowed: true };
 
   const key = `ratelimit:${ip}`;
-  const limit = 5;          // Máximo 5 peticiones
-  const windowSeconds = 60; // Ventana de 60 segundos
+  const limit = 5;
+  const windowSeconds = 60;
 
   try {
     const incrRes = await fetch(`${url}/incr/${key}`, {
@@ -44,7 +44,7 @@ async function generateWithGroq(prompt) {
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.9,
+        temperature: 1.0,
         max_tokens: 100
       })
     });
@@ -79,11 +79,29 @@ export default async function handler(req, res) {
   const contextEvent = eventName || 'evento especial de LingOrm';
   const geminiKey = process.env.GEMINI_API_KEY;
 
+  // Lista de tonos e instrucciones de estilo aleatorias para romper la monotonía
+  const styles = [
+    "Tono: Emotivo y cariñoso. Usa una pregunta retórica o una reflexión sobre su conexión.",
+    "Tono: Fan entusiasmado y divertido. Usa modismos de fandom y exageración cómica.",
+    "Tono: Poético y elegante. Destaca el brillo, el talento y la elegancia del momento.",
+    "Tono: Directo y moderno. Como un tuit casual pero lleno de orgullo y apoyo.",
+    "Tono: Épico y celebratorio. Enfócate en el impacto y el éxito de la aparición."
+  ];
+
+  const randomStyle = styles[Math.floor(Math.random() * styles.length)];
   const randomSeed = Math.floor(Math.random() * 999999);
-  const prompt = `Escribe un caption entusiasta y original en español para redes sociales sobre el evento "${contextEvent}" de las actrices Lingling Kwong y Orm Kornnaphat (LingOrm).
-- Máximo 20 palabras con emojis.
-- Semilla única: ${randomSeed}.
-- Responde ÚNICAMENTE con el texto del caption.`;
+
+  const prompt = `Eres un creador de contenido experto para el fandom de Lingling Kwong y Orm Kornnaphat (LingOrm).
+Escribe un caption único en español para redes sociales sobre el evento "${contextEvent}".
+
+Instrucciones de diversidad:
+- ESTILO OBLIGATORIO: ${randomStyle}
+- NO empieces siempre con "¡LingOrm..." ni uses la estructura típica "¡Nombre + Verbo!".
+- NO incluyas hashtags en el texto generado (el usuario ya tiene su propia sección de hashtags).
+- Longitud: Entre 10 y 20 palabras.
+- Usa de 1 a 3 emojis bien integrados en el texto.
+- ID de variación aleatoria: ${randomSeed}.
+- Responde ÚNICAMENTE con el texto del caption, sin comillas ni explicaciones.`;
 
   // 1. Intento con Gemini
   if (geminiKey) {
@@ -94,7 +112,10 @@ export default async function handler(req, res) {
         cache: 'no-store',
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 1.0 }
+          generationConfig: { 
+            temperature: 1.0,
+            topP: 0.95
+          }
         })
       });
 
@@ -116,6 +137,6 @@ export default async function handler(req, res) {
 
   // 3. Fallback estático
   return res.status(200).json({ 
-    caption: `¡Todo nuestro apoyo para Ling y Orm en ${contextEvent}! 💜✨` 
+    caption: `Incondicional apoyo a Ling y Orm en ${contextEvent} 💜✨` 
   });
 }
