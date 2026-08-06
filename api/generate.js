@@ -14,30 +14,44 @@ async function checkRateLimit(ip) {
       cache: 'no-store'
     });
     const incrData = await incrRes.json();
-    const currentRequests = incrData.result;
-
-    if (currentRequests === 1) {
+    if (incrData.result === 1) {
       await fetch(`${url}/expire/${key}/${windowSeconds}`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store'
       });
     }
-
-    if (currentRequests > limit) {
-      return { allowed: false };
-    }
-
-    return { allowed: true };
+    return { allowed: incrData.result <= limit };
   } catch (error) {
-    console.error("Error en Rate Limit:", error);
     return { allowed: true };
   }
 }
 
+// Función auxiliar para llamar a Groq API si Gemini falla
+async function generateWithGroq(prompt) {
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey) return null;
+
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${groqKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.9,
+      max_tokens: 100
+    })
+  });
+
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content?.trim();
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST');
 
@@ -50,60 +64,52 @@ export default async function handler(req, res) {
   
   if (!rateLimit.allowed) {
     return res.status(429).json({
-      error: 'Has superado el límite de peticiones. Espera un minuto antes de intentar de nuevo.'
+      error: 'Has superado el límite de peticiones. Por favor, espera un minuto.'
     });
   }
 
   const { eventName } = req.body || {};
   const contextEvent = eventName || 'evento especial de LingOrm';
-  const apiKey = process.env.GEMINI_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
 
-  if (!apiKey) {
-    return res.status(500).json({ error: 'Falta la variable GEMINI_API_KEY en Vercel' });
-  }
-
-  try {
-    const randomSeed = Math.floor(Math.random() * 999999);
-    const timestamp = Date.now();
-
-    const prompt = `Escribe un caption entusiasta y original en español para redes sociales sobre el evento "${contextEvent}" de las actrices Lingling Kwong y Orm Kornnaphat (LingOrm).
-- Usa palabras y estructura distintas a cualquier intento anterior.
+  const randomSeed = Math.floor(Math.random() * 999999);
+  const prompt = `Escribe un caption entusiasta y original en español para redes sociales sobre el evento "${contextEvent}" de las actrices Lingling Kwong y Orm Kornnaphat (LingOrm).
 - Máximo 20 palabras con emojis.
-- Semilla única: ${randomSeed}-${timestamp}.
+- Semilla única: ${randomSeed}.
 - Responde ÚNICAMENTE con el texto del caption.`;
 
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  cache: 'no-store',
-  body: JSON.stringify({
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: 1.0,
-      topP: 0.95
-    }
-  })
-});
-
-    const data = await response.json();
-
-    if (data.error) {
-      console.error("Error devuelto por Gemini:", data.error);
-      return res.status(500).json({ error: `Error de Gemini: ${data.error.message}` });
-    }
-
-    if (!data.candidates || data.candidates.length === 0) {
-      return res.status(200).json({ 
-        caption: `¡Todo nuestro apoyo para Ling y Orm en el ${contextEvent}! 💜` 
+  // 1. Intento con Gemini
+  if (geminiKey) {
+    try {
+      const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${geminiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 1.0 }
+        })
       });
+
+      const geminiData = await geminiRes.json();
+
+      if (geminiRes.ok && geminiData.candidates?.[0]?.content?.parts?.[0]?.text) {
+        return res.status(200).json({ caption: geminiData.candidates[0].content.parts[0].text.trim() });
+      }
+      console.warn("Gemini falló o devolvió cuota 0, alternando a proveedor secundario...");
+    } catch (e) {
+      console.error("Error al conectar con Gemini:", e);
     }
-
-    const caption = data.candidates[0].content?.parts[0]?.text?.trim();
-
-    return res.status(200).json({ caption });
-
-  } catch (error) {
-    console.error('Error procesando la solicitud:', error);
-    return res.status(500).json({ error: `Error interno: ${error.message}` });
   }
+
+  // 2. Fallback automático a Groq
+  const fallbackCaption = await generateWithGroq(prompt);
+  if (fallbackCaption) {
+    return res.status(200).json({ caption: fallbackCaption });
+  }
+
+  // 3. Fallback estático final en caso de fallo total de APIs
+  return res.status(200).json({ 
+    caption: `¡Todo nuestro apoyo para Ling y Orm en ${contextEvent}! 💜✨` 
+  });
 }
