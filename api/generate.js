@@ -99,7 +99,8 @@ Instrucciones de diversidad:
 - NO empieces siempre con "¡LingOrm..." ni uses la estructura típica "¡Nombre + Verbo!".
 - NO incluyas hashtags en el texto generado (el usuario ya tiene su propia sección de hashtags).
 - Longitud: Entre 10 y 20 palabras.
-- Usa de 1 a 3 emojis bien integrados en el texto.
+- Agrega al final de la frase el contexto/keyword del evento ("${contextEvent}").
+- NO incluyas emojis.
 - ID de variación aleatoria: ${randomSeed}.
 - Responde ÚNICAMENTE con el texto del caption, sin comillas ni explicaciones.`;
 
