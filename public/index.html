@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LingOrm Caption Generator AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-4">
+
+  <div class="max-w-md w-full bg-slate-800 rounded-xl shadow-lg border border-slate-700 p-6 space-y-4">
+    <h1 class="text-xl font-bold text-center text-purple-400">LingOrm Caption Generator (AI)</h1>
+    
+    <!-- Input del Evento -->
+    <div>
+      <label class="block text-xs font-medium mb-1 text-slate-300">Evento / Contexto</label>
+      <input type="text" id="eventName" value="LINGORM THE TOUCH OPEN HOUSE 2026" 
+             class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm focus:outline-none focus:border-purple-500">
+    </div>
+
+    <!-- Area del Caption Generado -->
+    <div>
+      <div class="flex justify-between text-xs text-slate-400 mb-1">
+        <span>Caption Generado con IA</span>
+        <span id="charCount">0/280</span>
+      </div>
+      <textarea id="captionBox" rows="3" readonly 
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm focus:outline-none resize-none"></textarea>
+    </div>
+
+    <!-- Hashtags Manuales y Presets -->
+    <div class="space-y-1">
+      <div class="flex justify-between items-center">
+        <label class="text-xs font-medium text-slate-300">Hashtags</label>
+        <div class="flex gap-1 text-[10px]">
+          <button onclick="setTags('#LingOrm #LinglingKwong #OrmKornnaphat')" class="text-purple-400 hover:underline">General</button> |
+          <button onclick="setTags('#PreventiveBlueprintWithLingOrm #LingOrm')" class="text-purple-400 hover:underline">The Touch</button>
+        </div>
+      </div>
+      <input type="text" id="tagsInput" value="#PreventiveBlueprintWithLingOrm #LingOrm #LinglingKwong #OrmKornnaphat" 
+             class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-purple-300 font-mono focus:outline-none focus:border-purple-500">
+    </div>
+
+    <!-- Botones de Acción -->
+    <div class="space-y-2 pt-2">
+      <button onclick="generatePhrase()" id="btnGenerate" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-medium py-2 rounded-lg text-xs transition flex items-center justify-center gap-1">
+        <span>✨ Generar Nueva Frase</span>
+      </button>
+      <div class="grid grid-cols-2 gap-2">
+        <button onclick="copyCaption()" class="bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 px-3 rounded-lg text-xs transition">
+          Copiar Frase
+        </button>
+        <button onclick="copyAll()" class="bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 px-3 rounded-lg text-xs transition">
+          Copiar Frase + Tags
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function generatePhrase() {
+      const btn = document.getElementById("btnGenerate");
+      const eventName = document.getElementById("eventName").value;
+      const captionBox = document.getElementById("captionBox");
+      
+      btn.innerText = "Pensando frase...";
+      btn.disabled = true;
+
+      try {
+        const response = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ eventName })
+        });
+
+        const data = await response.json();
+
+        // Manejar excedente de peticiones (429 Too Many Requests)
+        if (response.status === 429) {
+          captionBox.value = data.error;
+          document.getElementById("charCount").innerText = "0/280";
+          return;
+        }
+
+        if (data.caption) {
+          captionBox.value = data.caption;
+          document.getElementById("charCount").innerText = `${data.caption.length}/280`;
+        } else if (data.error) {
+          captionBox.value = data.error;
+        }
+      } catch (error) {
+        captionBox.value = "Error al conectar con el servidor.";
+      } finally {
+        btn.innerText = "✨ Generar Nueva Frase";
+        btn.disabled = false;
+      }
+    }
+
+    function setTags(tags) {
+      document.getElementById("tagsInput").value = tags;
+    }
+
+    function copyCaption() {
+      const caption = document.getElementById("captionBox").value;
+      navigator.clipboard.writeText(caption);
+    }
+
+    function copyAll() {
+      const caption = document.getElementById("captionBox").value;
+      const tags = document.getElementById("tagsInput").value;
+      navigator.clipboard.writeText(`${caption}\n\n${tags}`);
+    }
+
+    // Generar automáticamente al cargar la página
+    generatePhrase();
+  </script>
+</body>
+</html>
