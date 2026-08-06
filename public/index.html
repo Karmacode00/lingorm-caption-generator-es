@@ -106,11 +106,11 @@
       navigator.clipboard.writeText(caption);
     }
 
-    function copyAll() {
-  const caption = document.getElementById("captionBox").value;
-  const tags = document.getElementById("tagsInput").value;
+function copyAll() {
+  const caption = document.getElementById("captionBox").value.trim();
+  const tags = document.getElementById("tagsInput").value.trim();
   
-  // Concatena el caption (Frase + Evento) y los hashtags con un solo salto de línea
+  // Un solo salto de línea exacto entre el evento y los hashtags
   const fullText = `${caption}\n${tags}`;
   
   navigator.clipboard.writeText(fullText);
