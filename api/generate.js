@@ -5,8 +5,8 @@ async function checkRateLimit(ip) {
   if (!url || !token) return { allowed: true };
 
   const key = `ratelimit:${ip}`;
-  const limit = 5;
-  const windowSeconds = 60;
+  const limit = 5;          // Máximo 5 peticiones
+  const windowSeconds = 60; // Ventana de 60 segundos
 
   try {
     const incrRes = await fetch(`${url}/incr/${key}`, {
@@ -14,40 +14,47 @@ async function checkRateLimit(ip) {
       cache: 'no-store'
     });
     const incrData = await incrRes.json();
-    if (incrData.result === 1) {
+    const currentRequests = incrData.result;
+
+    if (currentRequests === 1) {
       await fetch(`${url}/expire/${key}/${windowSeconds}`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store'
       });
     }
-    return { allowed: incrData.result <= limit };
+
+    return { allowed: currentRequests <= limit };
   } catch (error) {
+    console.error("Error en Rate Limit:", error);
     return { allowed: true };
   }
 }
 
-// Función auxiliar para llamar a Groq API si Gemini falla
 async function generateWithGroq(prompt) {
   const groqKey = process.env.GROQ_API_KEY;
   if (!groqKey) return null;
 
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${groqKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.9,
-      max_tokens: 100
-    })
-  });
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${groqKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.9,
+        max_tokens: 100
+      })
+    });
 
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content?.trim();
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content?.trim();
+  } catch (e) {
+    return null;
+  }
 }
 
 export default async function handler(req, res) {
@@ -96,19 +103,18 @@ export default async function handler(req, res) {
       if (geminiRes.ok && geminiData.candidates?.[0]?.content?.parts?.[0]?.text) {
         return res.status(200).json({ caption: geminiData.candidates[0].content.parts[0].text.trim() });
       }
-      console.warn("Gemini falló o devolvió cuota 0, alternando a proveedor secundario...");
     } catch (e) {
       console.error("Error al conectar con Gemini:", e);
     }
   }
 
-  // 2. Fallback automático a Groq
+  // 2. Fallback a Groq
   const fallbackCaption = await generateWithGroq(prompt);
   if (fallbackCaption) {
     return res.status(200).json({ caption: fallbackCaption });
   }
 
-  // 3. Fallback estático final en caso de fallo total de APIs
+  // 3. Fallback estático
   return res.status(200).json({ 
     caption: `¡Todo nuestro apoyo para Ling y Orm en ${contextEvent}! 💜✨` 
   });
