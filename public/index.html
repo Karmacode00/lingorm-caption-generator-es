@@ -108,11 +108,10 @@
 
     function copyAll() {
   const caption = document.getElementById("captionBox").value;
-  const eventName = document.getElementById("eventName").value;
   const tags = document.getElementById("tagsInput").value;
   
-  // Si la frase ya incluye el evento, lo copia directamente con los hashtags abajo
-  const fullText = `${caption}\n\n${tags}`;
+  // Concatena el caption (Frase + Evento) y los hashtags con un solo salto de línea
+  const fullText = `${caption}\n${tags}`;
   
   navigator.clipboard.writeText(fullText);
 }

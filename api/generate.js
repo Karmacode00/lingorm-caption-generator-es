@@ -124,7 +124,7 @@ Reglas estrictas:
 
   // 3. Fallback estático
   if (!phrase) {
-    phrase = "¡Celebrando este momento con todo el corazón! 💜✨";
+    phrase = "¡Celebrando este momento con todo el corazón! ✨";
   }
 
   // Limpiar posibles comillas del resultado de la IA
