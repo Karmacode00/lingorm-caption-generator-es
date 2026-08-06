@@ -2,23 +2,24 @@ async function checkRateLimit(ip) {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-  // Si no hay credenciales de Upstash, permite la ejecución sin rate limit
   if (!url || !token) return { allowed: true };
 
   const key = `ratelimit:${ip}`;
-  const limit = 5;          // Máximo 5 peticiones
-  const windowSeconds = 60; // Ventana de 60 segundos
+  const limit = 5;
+  const windowSeconds = 60;
 
   try {
     const incrRes = await fetch(`${url}/incr/${key}`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store'
     });
     const incrData = await incrRes.json();
     const currentRequests = incrData.result;
 
     if (currentRequests === 1) {
       await fetch(`${url}/expire/${key}/${windowSeconds}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store'
       });
     }
 
@@ -28,13 +29,12 @@ async function checkRateLimit(ip) {
 
     return { allowed: true };
   } catch (error) {
-    console.error("Error en verificación de Rate Limit:", error);
+    console.error("Error en Rate Limit:", error);
     return { allowed: true };
   }
 }
 
 export default async function handler(req, res) {
-  // Desactivar caché de Vercel y del navegador
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
@@ -45,7 +45,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
-  // 1. Validar límite de peticiones por IP
   const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
   const rateLimit = await checkRateLimit(clientIp);
   
@@ -60,23 +59,23 @@ export default async function handler(req, res) {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: 'Falta la API Key en las variables de entorno' });
+    return res.status(500).json({ error: 'Error: No se encontró GEMINI_API_KEY en Vercel.' });
   }
 
   try {
-    // Semilla aleatoria + timestamp para romper la caché del modelo
     const randomSeed = Math.floor(Math.random() * 999999);
-    const timestamp = new Date().toISOString();
+    const timestamp = Date.now();
 
-    const prompt = `Escribe un caption entusiasta y completamente diferente en español para redes sociales (fandom) sobre el evento "${contextEvent}" de las actrices Lingling Kwong y Orm Kornnaphat (LingOrm).
-- Redacta una frase con un tono y vocabulario distinto a respuestas anteriores.
-- Máximo 20 palabras, incluye emojis.
+    const prompt = `Escribe un caption entusiasta y totalmente original en español para redes sociales sobre el evento "${contextEvent}" de las actrices Lingling Kwong y Orm Kornnaphat (LingOrm). 
+- Usa palabras y estructura distintas a cualquier intento anterior.
+- Máximo 20 palabras con emojis.
 - Semilla única: ${randomSeed}-${timestamp}.
 - Responde ÚNICAMENTE con el texto del caption.`;
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store', // Evita que Vercel guarde en caché la llamada a Google
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
@@ -88,20 +87,28 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
+    // Si la API de Google devuelve un error (ej. API Key inválida o cuota superada)
+    if (data.error) {
+      console.error("Error devuelto por Gemini API:", data.error);
+      return res.status(500).json({ 
+        error: `Error de Gemini API: ${data.error.message || 'Error en la solicitud'}` 
+      });
+    }
+
     if (!data.candidates || data.candidates.length === 0) {
       return res.status(200).json({ 
-        caption: `¡Todo nuestro apoyo para Ling y Orm en el ${contextEvent}! 💜` 
+        caption: `¡Todo nuestro apoyo para Ling y Orm en el ${contextEvent}! 💜 (S: ${randomSeed})` 
       });
     }
 
     const caption = data.candidates[0].content?.parts[0]?.text?.trim();
 
     return res.status(200).json({ 
-      caption: caption || `¡Increíble momento con Ling y Orm en el ${contextEvent}! 🌟` 
+      caption: caption 
     });
 
   } catch (error) {
-    console.error('Error al procesar con Gemini:', error);
-    return res.status(500).json({ error: 'Error interno al generar la frase.' });
+    console.error('Error procesando la solicitud:', error);
+    return res.status(500).json({ error: `Error interno: ${error.message}` });
   }
 }
