@@ -81,13 +81,14 @@ export default async function handler(req, res) {
 
   // Le pedimos a la IA SOLO la frase previa, sin el nombre del evento
   const prompt = `Eres creador de contenido para el fandom de Lingling Kwong y Orm Kornnaphat (LingOrm).
-Escribe ÚNICAMENTE una frase corta en español (de 10 a 20 palabras) con emojis para celebrar o apoyar el evento "${contextEvent}".
+Escribe ÚNICAMENTE una frase corta en español (de 10 a 20 palabras) sin emojis para celebrar o apoyar el evento "${contextEvent}".
 
 Reglas estrictas:
 - ESTILO: ${randomStyle}
 - NO incluyas el nombre del evento "${contextEvent}" dentro de la frase.
 - NO agregues hashtags.
 - NO agregues emojis.
+- GÉNERO OBLIGATORIO: Ambas son mujeres (Lingling y Orm), por lo que debes usar SIEMPRE género femenino (ej. "juntas", "hermosas", "unidas", "juntas para siempre"). Queda prohibido usar plurales masculinos como "juntos".
 - NO uses palabras de enlace al final como "en", "para", "de".
 - Semilla única: ${randomSeed}.
 - Responde ÚNICAMENTE con el texto de la frase.`;
