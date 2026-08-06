@@ -70,10 +70,21 @@ export default async function handler(req, res) {
   const geminiKey = process.env.GEMINI_API_KEY;
 
   const styles = [
-    "Tono: Emotivo y cariñoso. Usa una reflexión o frase con mucho afecto.",
-    "Tono: Fan entusiasmado. Usa energía, orgullo y emoción.",
-    "Tono: Poético y elegante. Destaca el talento y la presencia.",
-    "Tono: Directo y moderno. Estilo tuit de apoyo."
+    // Perspectiva Fandom / Emoción
+    "Tono: Fan entusiasmado. Usa expresiones de orgullo, exageración cómica y emoción pura.",
+    "Tono: Emotivo y cariñoso. Reflexiona sobre la conexión, el apoyo mutuo y el afecto.",
+    
+    // Formato Narrativo / Preguntas
+    "Tono: Pregunta interactiva. Inicia con una pregunta al fandom para generar comentarios (ej. '¿Alguien más sin aliento...?').",
+    "Tono: Micro-comentario. Estilo tuit casual de 1 línea, rápido y directo.",
+    
+    // Elegancia / Concepto
+    "Tono: Poético y elegante. Resalta la química, el talento, la luz y la presencia escénica.",
+    "Tono: Minimalista e impactante. Usa muy pocas palabras (4 a 8 palabras) con máxima fuerza y elegancia.",
+    
+    // Apoyo / Celebración
+    "Tono: Celebración de logro. Enfócate en el éxito, los récords, los hitos o metas alcanzadas.",
+    "Tono: Apoyo incondicional. Transmite lealtad, acompañamiento y buena vibra hacia el futuro."
   ];
 
   const randomStyle = styles[Math.floor(Math.random() * styles.length)];
