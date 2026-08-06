@@ -2,7 +2,7 @@ async function checkRateLimit(ip) {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-  // Si no se han configurado las variables de Redis, omitimos la restricción
+  // Si no hay credenciales de Upstash, permite la ejecución sin rate limit
   if (!url || !token) return { allowed: true };
 
   const key = `ratelimit:${ip}`;
@@ -23,17 +23,21 @@ async function checkRateLimit(ip) {
     }
 
     if (currentRequests > limit) {
-      return { allowed: false, currentRequests, limit };
+      return { allowed: false };
     }
 
     return { allowed: true };
   } catch (error) {
     console.error("Error en verificación de Rate Limit:", error);
-    return { allowed: true }; // En caso de fallo en Redis, permite la petición
+    return { allowed: true };
   }
 }
 
 export default async function handler(req, res) {
+  // Desactivar caché de Vercel y del navegador
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST');
 
@@ -41,14 +45,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
-  // Detectar la IP del cliente en Vercel
+  // 1. Validar límite de peticiones por IP
   const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
-
-  // 1. Validar Rate Limit
   const rateLimit = await checkRateLimit(clientIp);
+  
   if (!rateLimit.allowed) {
     return res.status(429).json({
-      error: 'Has superado el límite de peticiones. Espera un minuto antes de intentar de nuevo.'
+      error: 'Has superado el límite de peticiones. Por favor, espera un minuto antes de intentar de nuevo.'
     });
   }
 
@@ -61,13 +64,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Generar un identificador aleatorio para forzar variedad en las respuestas de la IA
-    const randomSeed = Math.floor(Math.random() * 100000);
+    // Semilla aleatoria + timestamp para romper la caché del modelo
+    const randomSeed = Math.floor(Math.random() * 999999);
+    const timestamp = new Date().toISOString();
 
-    const prompt = `Escribe un caption entusiasta y ÚNICO en español para redes sociales (fandom) sobre el evento "${contextEvent}" de las actrices Lingling Kwong y Orm Kornnaphat (LingOrm). 
-- Usa una estructura totalmente variada y creativa.
-- Máximo 20 palabras, incluye emojis acordes.
-- Variación id: ${randomSeed}.
+    const prompt = `Escribe un caption entusiasta y completamente diferente en español para redes sociales (fandom) sobre el evento "${contextEvent}" de las actrices Lingling Kwong y Orm Kornnaphat (LingOrm).
+- Redacta una frase con un tono y vocabulario distinto a respuestas anteriores.
+- Máximo 20 palabras, incluye emojis.
+- Semilla única: ${randomSeed}-${timestamp}.
 - Responde ÚNICAMENTE con el texto del caption.`;
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
@@ -76,16 +80,15 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 1.0 // Alta temperatura para aumentar la diversidad de respuestas
+          temperature: 1.0,
+          topP: 0.95
         }
       })
     });
 
     const data = await response.json();
 
-    // Manejar posibles respuestas bloqueadas o vacías por parte de Gemini
     if (!data.candidates || data.candidates.length === 0) {
-      console.error("Respuesta bloqueada o sin candidatos:", JSON.stringify(data));
       return res.status(200).json({ 
         caption: `¡Todo nuestro apoyo para Ling y Orm en el ${contextEvent}! 💜` 
       });

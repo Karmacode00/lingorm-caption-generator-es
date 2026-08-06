@@ -9,26 +9,26 @@
 <body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-4">
 
   <div class="max-w-md w-full bg-slate-800 rounded-xl shadow-lg border border-slate-700 p-6 space-y-4">
-    <h1 class="text-xl font-bold text-center text-purple-400">LingOrm Caption Generator (AI)</h1>
+    <h1 class="text-xl font-bold text-center text-purple-400">LingOrm Caption Generator Español</h1>
     
-    <!-- Input del Evento -->
+    <!-- Campo Evento/Contexto -->
     <div>
       <label class="block text-xs font-medium mb-1 text-slate-300">Evento / Contexto</label>
       <input type="text" id="eventName" value="LINGORM THE TOUCH OPEN HOUSE 2026" 
              class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm focus:outline-none focus:border-purple-500">
     </div>
 
-    <!-- Area del Caption Generado -->
+    <!-- Área del Caption -->
     <div>
       <div class="flex justify-between text-xs text-slate-400 mb-1">
-        <span>Caption Generado con IA</span>
+        <span>Caption Generado</span>
         <span id="charCount">0/280</span>
       </div>
       <textarea id="captionBox" rows="3" readonly 
                 class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm focus:outline-none resize-none"></textarea>
     </div>
 
-    <!-- Hashtags Manuales y Presets -->
+    <!-- Sección de Hashtags -->
     <div class="space-y-1">
       <div class="flex justify-between items-center">
         <label class="text-xs font-medium text-slate-300">Hashtags</label>
@@ -70,12 +70,12 @@
         const response = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
           body: JSON.stringify({ eventName })
         });
 
         const data = await response.json();
 
-        // Manejar excedente de peticiones (429 Too Many Requests)
         if (response.status === 429) {
           captionBox.value = data.error;
           document.getElementById("charCount").innerText = "0/280";
@@ -111,7 +111,7 @@
       navigator.clipboard.writeText(`${caption}\n\n${tags}`);
     }
 
-    // Generar automáticamente al cargar la página
+    // Generar la primera frase al abrir la página
     generatePhrase();
   </script>
 </body>
