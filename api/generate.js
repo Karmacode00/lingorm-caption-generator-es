@@ -50,7 +50,7 @@ export default async function handler(req, res) {
   
   if (!rateLimit.allowed) {
     return res.status(429).json({
-      error: 'Has superado el límite de peticiones. Por favor, espera un minuto antes de intentar de nuevo.'
+      error: 'Has superado el límite de peticiones. Espera un minuto antes de intentar de nuevo.'
     });
   }
 
@@ -59,56 +59,57 @@ export default async function handler(req, res) {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: 'Error: No se encontró GEMINI_API_KEY en Vercel.' });
+    return res.status(500).json({ error: 'Falta la variable GEMINI_API_KEY en Vercel' });
   }
 
-  try {
-    const randomSeed = Math.floor(Math.random() * 999999);
-    const timestamp = Date.now();
+  const randomSeed = Math.floor(Math.random() * 999999);
+  const timestamp = Date.now();
 
-    const prompt = `Escribe un caption entusiasta y totalmente original en español para redes sociales sobre el evento "${contextEvent}" de las actrices Lingling Kwong y Orm Kornnaphat (LingOrm). 
-- Usa palabras y estructura distintas a cualquier intento anterior.
+  const prompt = `Escribe un caption entusiasta y original en español para redes sociales sobre el evento "${contextEvent}" de las actrices Lingling Kwong y Orm Kornnaphat (LingOrm).
 - Máximo 20 palabras con emojis.
 - Semilla única: ${randomSeed}-${timestamp}.
 - Responde ÚNICAMENTE con el texto del caption.`;
 
-const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  cache: 'no-store',
-  body: JSON.stringify({
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: 1.0,
-      topP: 0.95
-    }
-  })
-});
+  // Lista de endpoints a probar en orden
+  const modelEndpoints = [
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`
+  ];
 
-    const data = await response.json();
+  let lastError = null;
 
-    // Si la API de Google devuelve un error (ej. API Key inválida o cuota superada)
-    if (data.error) {
-      console.error("Error devuelto por Gemini API:", data.error);
-      return res.status(500).json({ 
-        error: `Error de Gemini API: ${data.error.message || 'Error en la solicitud'}` 
+  for (const url of modelEndpoints) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 1.0,
+            topP: 0.95
+          }
+        })
       });
+
+      const data = await response.json();
+
+      if (response.ok && data.candidates && data.candidates.length > 0) {
+        const caption = data.candidates[0].content?.parts[0]?.text?.trim();
+        if (caption) {
+          return res.status(200).json({ caption });
+        }
+      } else if (data.error) {
+        lastError = data.error.message || JSON.stringify(data.error);
+      }
+    } catch (e) {
+      lastError = e.message;
     }
-
-    if (!data.candidates || data.candidates.length === 0) {
-      return res.status(200).json({ 
-        caption: `¡Todo nuestro apoyo para Ling y Orm en el ${contextEvent}! 💜 (S: ${randomSeed})` 
-      });
-    }
-
-    const caption = data.candidates[0].content?.parts[0]?.text?.trim();
-
-    return res.status(200).json({ 
-      caption: caption 
-    });
-
-  } catch (error) {
-    console.error('Error procesando la solicitud:', error);
-    return res.status(500).json({ error: `Error interno: ${error.message}` });
   }
+
+  return res.status(500).json({ 
+    error: `No se pudo conectar con los modelos de Gemini. Detalle: ${lastError}` 
+  });
 }
