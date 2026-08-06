@@ -14,18 +14,8 @@ async function checkRateLimit(ip) {
       cache: 'no-store'
     });
     const incrData = await incrRes.json();
-    const currentRequests = incrData.result;
-
-    if (currentRequests === 1) {
-      await fetch(`${url}/expire/${key}/${windowSeconds}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: 'no-store'
-      });
-    }
-
-    return { allowed: currentRequests <= limit };
+    return { allowed: incrData.result <= limit };
   } catch (error) {
-    console.error("Error en Rate Limit:", error);
     return { allowed: true };
   }
 }
@@ -76,36 +66,33 @@ export default async function handler(req, res) {
   }
 
   const { eventName } = req.body || {};
-  const contextEvent = eventName || 'evento especial de LingOrm';
+  const contextEvent = eventName ? eventName.trim() : 'evento especial de LingOrm';
   const geminiKey = process.env.GEMINI_API_KEY;
 
-  // Lista de tonos e instrucciones de estilo aleatorias para romper la monotonía
   const styles = [
-    "Tono: Emotivo y cariñoso. Usa una pregunta retórica o una reflexión sobre su conexión.",
-    "Tono: Fan entusiasmado y divertido. Usa modismos de fandom y exageración cómica.",
-    "Tono: Poético y elegante. Destaca el brillo, el talento y la elegancia del momento.",
-    "Tono: Directo y moderno. Como un tuit casual pero lleno de orgullo y apoyo.",
-    "Tono: Épico y celebratorio. Enfócate en el impacto y el éxito de la aparición."
+    "Tono: Emotivo y cariñoso. Usa una reflexión o frase con mucho afecto.",
+    "Tono: Fan entusiasmado. Usa energía, orgullo y emoción.",
+    "Tono: Poético y elegante. Destaca el talento y la presencia.",
+    "Tono: Directo y moderno. Estilo tuit de apoyo."
   ];
 
   const randomStyle = styles[Math.floor(Math.random() * styles.length)];
   const randomSeed = Math.floor(Math.random() * 999999);
 
-  const prompt = `Eres un creador de contenido experto para el fandom de Lingling Kwong y Orm Kornnaphat (LingOrm).
-Escribe un caption único en español para redes sociales sobre el evento "${contextEvent}".
+  // Le pedimos a la IA SOLO la frase previa, sin el nombre del evento
+  const prompt = `Eres creador de contenido para el fandom de Lingling Kwong y Orm Kornnaphat (LingOrm).
+Escribe ÚNICAMENTE una frase corta en español (de 10 a 20 palabras) con emojis para celebrar o apoyar el evento "${contextEvent}".
 
-Estructura OBLIGATORIA:
-[Frase corta entusiasta entre 10 y 20 palabras]
-[Salto de línea]
-[Texto exacto del evento: "${contextEvent}"]
+Reglas estrictas:
+- ESTILO: ${randomStyle}
+- NO incluyas el nombre del evento "${contextEvent}" dentro de la frase.
+- NO agregues hashtags.
+- NO agregues emojis.
+- NO uses palabras de enlace al final como "en", "para", "de".
+- Semilla única: ${randomSeed}.
+- Responde ÚNICAMENTE con el texto de la frase.`;
 
-Instrucciones de diversidad:
-- ESTILO OBLIGATORIO: ${randomStyle}
-- NO empieces siempre con "¡LingOrm..." ni uses la estructura típica "¡Nombre + Verbo!".
-- NO incluyas hashtags en el texto generado (el usuario ya tiene su propia sección de hashtags).
-- NO incluyas emojis.
-- ID de variación aleatoria: ${randomSeed}.
-- Responde ÚNICAMENTE con el texto del caption, sin comillas ni explicaciones.`;
+  let phrase = null;
 
   // 1. Intento con Gemini
   if (geminiKey) {
@@ -116,17 +103,14 @@ Instrucciones de diversidad:
         cache: 'no-store',
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { 
-            temperature: 1.0,
-            topP: 0.95
-          }
+          generationConfig: { temperature: 1.0, topP: 0.95 }
         })
       });
 
       const geminiData = await geminiRes.json();
 
       if (geminiRes.ok && geminiData.candidates?.[0]?.content?.parts?.[0]?.text) {
-        return res.status(200).json({ caption: geminiData.candidates[0].content.parts[0].text.trim() });
+        phrase = geminiData.candidates[0].content.parts[0].text.trim();
       }
     } catch (e) {
       console.error("Error al conectar con Gemini:", e);
@@ -134,13 +118,20 @@ Instrucciones de diversidad:
   }
 
   // 2. Fallback a Groq
-  const fallbackCaption = await generateWithGroq(prompt);
-  if (fallbackCaption) {
-    return res.status(200).json({ caption: fallbackCaption });
+  if (!phrase) {
+    phrase = await generateWithGroq(prompt);
   }
 
   // 3. Fallback estático
-  return res.status(200).json({ 
-    caption: `Incondicional apoyo a Ling y Orm en ${contextEvent} 💜✨` 
-  });
+  if (!phrase) {
+    phrase = "¡Celebrando este momento con todo el corazón! 💜✨";
+  }
+
+  // Limpiar posibles comillas del resultado de la IA
+  phrase = phrase.replace(/^["']|["']$/g, '');
+
+  // Formatear el resultado final garantizando SIEMPRE la línea en blanco entre la frase y el contexto
+  const finalCaption = `${phrase}\n\n${contextEvent}`;
+
+  return res.status(200).json({ caption: finalCaption });
 }
