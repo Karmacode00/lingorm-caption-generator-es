@@ -72,18 +72,18 @@ export default async function handler(req, res) {
 - Semilla única: ${randomSeed}-${timestamp}.
 - Responde ÚNICAMENTE con el texto del caption.`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      cache: 'no-store', // Evita que Vercel guarde en caché la llamada a Google
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 1.0,
-          topP: 0.95
-        }
-      })
-    });
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  cache: 'no-store',
+  body: JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 1.0,
+      topP: 0.95
+    }
+  })
+});
 
     const data = await response.json();
 
