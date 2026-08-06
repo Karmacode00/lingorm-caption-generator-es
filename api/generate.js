@@ -94,12 +94,15 @@ export default async function handler(req, res) {
   const prompt = `Eres un creador de contenido experto para el fandom de Lingling Kwong y Orm Kornnaphat (LingOrm).
 Escribe un caption único en español para redes sociales sobre el evento "${contextEvent}".
 
+Estructura OBLIGATORIA:
+[Frase corta entusiasta entre 10 y 20 palabras]
+[Salto de línea]
+[Texto exacto del evento: "${contextEvent}"]
+
 Instrucciones de diversidad:
 - ESTILO OBLIGATORIO: ${randomStyle}
 - NO empieces siempre con "¡LingOrm..." ni uses la estructura típica "¡Nombre + Verbo!".
 - NO incluyas hashtags en el texto generado (el usuario ya tiene su propia sección de hashtags).
-- Longitud: Entre 10 y 20 palabras.
-- Agrega al final de la frase el contexto/keyword del evento ("${contextEvent}").
 - NO incluyas emojis.
 - ID de variación aleatoria: ${randomSeed}.
 - Responde ÚNICAMENTE con el texto del caption, sin comillas ni explicaciones.`;
